@@ -4,7 +4,9 @@ import { listProviders, getProvider } from "./providers.js";
 import { getKey, setKey, deleteKey, hasKey } from "./keys.js";
 import { proxyRequest, proxyGet } from "./proxy.js";
 import { getUsage } from "./usage.js";
-import { selectModel, readPriorityList, writePriorityList } from "./selector.js";
+import { selectModel, readPriorityList, writePriorityList, buildFallbackQueue } from "./selector.js";
+
+const RETRIABLE = new Set([401, 402, 403, 429, 500, 502, 503, 504]);
 
 const app = Fastify({ logger: true });
 
@@ -101,10 +103,43 @@ app.post("/v1/chat/completions", async (req, reply) => {
     });
   }
 
-  const { data, error, status } = await proxyRequest(providerId, "/chat/completions", body, req.headers);
+  const tried = new Set();
+  let lastResult;
 
-  if (error) return reply.status(status).send({ error });
-  return reply.status(status).send(data);
+  while (true) {
+    const attemptKey = `${providerId}/${body.model}`;
+    tried.add(attemptKey);
+
+    lastResult = await proxyRequest(providerId, "/chat/completions", body, req.headers);
+
+    const failed = lastResult.error || RETRIABLE.has(lastResult.status);
+    if (!failed) break;
+
+    const reason = lastResult.error ?? `HTTP ${lastResult.status}`;
+    req.log.warn(
+      { provider: providerId, model: body.model, status: lastResult.status ?? "network_error", reason },
+      `Provider failed (${reason}), trying fallback`,
+    );
+
+    const queue = buildFallbackQueue(tried);
+    if (queue.length === 0) {
+      req.log.warn({ tried: [...tried] }, "All available providers exhausted");
+      break;
+    }
+
+    const next = queue[0];
+    req.log.info(
+      { provider: next.provider, model: next.model },
+      `Falling back to ${next.provider}/${next.model}`,
+    );
+    providerId = next.provider;
+    body = { ...body, model: next.model };
+  }
+
+  reply.header("x-router-attempts", tried.size);
+
+  if (lastResult.error) return reply.status(lastResult.status).send({ error: lastResult.error });
+  return reply.status(lastResult.status).send(lastResult.data);
 });
 
 app.get("/priority", async () => {

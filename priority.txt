@@ -1,3 +1,2 @@
+mistral/mistral-large-latest
 groq/llama-3.3-70b-versatile
-groq/llama-4-scout-17b-16e-instruct
-openrouter/deepseek/deepseek-r1:free

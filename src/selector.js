@@ -27,6 +27,41 @@ function providersWithKeys() {
   return listProviders().filter((p) => hasKey(p.id));
 }
 
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+export function buildFallbackQueue(excludeSet) {
+  const queue = [];
+  const seen = new Set(excludeSet);
+
+  for (const line of readPriorityList()) {
+    const entry = parseEntry(line);
+    if (!entry) continue;
+    const key = `${entry.provider}/${entry.model}`;
+    if (seen.has(key)) continue;
+    if (!hasKey(entry.provider)) continue;
+    queue.push(entry);
+    seen.add(key);
+  }
+
+  const remaining = shuffle(providersWithKeys());
+  for (const provider of remaining) {
+    for (const model of provider.models) {
+      const key = `${provider.id}/${model}`;
+      if (seen.has(key)) continue;
+      queue.push({ provider: provider.id, model });
+      seen.add(key);
+    }
+  }
+
+  return queue;
+}
+
 export function selectModel(log) {
   const lines = readPriorityList();
 
