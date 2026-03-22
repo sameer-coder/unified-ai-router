@@ -1,5 +1,6 @@
 import { getKey } from "./keys.js";
 import { getProvider } from "./providers.js";
+import { recordUsage } from "./usage.js";
 
 function getBaseUrl(provider) {
   if (provider.getBaseUrl) {
@@ -52,6 +53,11 @@ export async function proxyRequest(providerId, path, body, reqHeaders) {
     });
 
     const data = await response.json();
+
+    if (response.ok) {
+      recordUsage(providerId, data.usage ?? null);
+    }
+
     return { data, status: response.status };
   } catch (err) {
     return { error: err.message, status: 502 };

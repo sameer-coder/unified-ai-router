@@ -3,6 +3,7 @@ import Fastify from "fastify";
 import { listProviders, getProvider } from "./providers.js";
 import { getKey, setKey, deleteKey, hasKey } from "./keys.js";
 import { proxyRequest, proxyGet } from "./proxy.js";
+import { getUsage } from "./usage.js";
 
 const app = Fastify({ logger: true });
 
@@ -93,6 +94,10 @@ app.post("/v1/chat/completions", async (req, reply) => {
 
   if (error) return reply.status(status).send({ error });
   return reply.status(status).send(data);
+});
+
+app.get("/usage", async () => {
+  return getUsage();
 });
 
 app.get("/v1/models", async (req, reply) => {
