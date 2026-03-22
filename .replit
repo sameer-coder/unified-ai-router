@@ -32,3 +32,7 @@ outputType = "console"
 [[ports]]
 localPort = 3000
 externalPort = 3000
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 60000
