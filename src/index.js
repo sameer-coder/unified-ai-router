@@ -4,6 +4,7 @@ import { listProviders, getProvider } from "./providers.js";
 import { getKey, setKey, deleteKey, hasKey } from "./keys.js";
 import { proxyRequest, proxyGet } from "./proxy.js";
 import { getUsage } from "./usage.js";
+import { selectModel, readPriorityList, writePriorityList } from "./selector.js";
 
 const app = Fastify({ logger: true });
 
@@ -18,8 +19,10 @@ app.get("/", async () => ({
     providers: "GET /providers",
     setKey: "POST /providers/:id/key  { key: '...' }",
     deleteKey: "DELETE /providers/:id/key",
-    chat: "POST /v1/chat/completions  (add x-provider header)",
+    chat: "POST /v1/chat/completions  (x-provider header optional — auto-selects if omitted)",
     models: "GET /v1/models",
+    priority: "GET /priority  |  PUT /priority  { models: ['groq/llama-3.3-70b-versatile', ...] }",
+    usage: "GET /usage",
   },
 }));
 
@@ -80,20 +83,42 @@ app.get("/providers/:id/key", async (req, reply) => {
 });
 
 app.post("/v1/chat/completions", async (req, reply) => {
-  const providerId = req.headers["x-provider"];
-  if (!providerId) {
-    return reply.status(400).send({ error: "Missing x-provider header. Specify which provider to use." });
+  let providerId = req.headers["x-provider"];
+  let body = req.body ?? {};
+
+  if (!providerId && !body.model) {
+    const selected = selectModel(req.log);
+    if (!selected) {
+      return reply.status(400).send({
+        error: "No provider specified and no API keys are configured. Set a key with POST /providers/:id/key",
+      });
+    }
+    providerId = selected.provider;
+    body = { ...body, model: selected.model };
+  } else if (!providerId) {
+    return reply.status(400).send({
+      error: "Missing x-provider header. Specify which provider to use, or omit both provider and model for auto-selection.",
+    });
   }
 
-  const { data, error, status } = await proxyRequest(
-    providerId,
-    "/chat/completions",
-    req.body,
-    req.headers,
-  );
+  const { data, error, status } = await proxyRequest(providerId, "/chat/completions", body, req.headers);
 
   if (error) return reply.status(status).send({ error });
   return reply.status(status).send(data);
+});
+
+app.get("/priority", async () => {
+  const lines = readPriorityList();
+  return { models: lines };
+});
+
+app.put("/priority", async (req, reply) => {
+  const { models } = req.body ?? {};
+  if (!Array.isArray(models)) {
+    return reply.status(400).send({ error: "Body must be { models: ['provider/model', ...] }" });
+  }
+  writePriorityList(models);
+  return { success: true, models };
 });
 
 app.get("/usage", async () => {

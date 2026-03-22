@@ -1,0 +1,11 @@
+{
+  "month": "2026-03",
+  "providers": {
+    "groq": {
+      "requests": 2,
+      "prompt_tokens": 82,
+      "completion_tokens": 5,
+      "total_tokens": 87
+    }
+  }
+}
