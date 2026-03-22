@@ -1,5 +1,6 @@
 import "dotenv/config";
 import Fastify from "fastify";
+import cors from "@fastify/cors";
 import { listProviders, getProvider } from "./providers.js";
 import { getKey, setKey, deleteKey, hasKey } from "./keys.js";
 import { proxyRequest, proxyGet } from "./proxy.js";
@@ -9,6 +10,13 @@ import { selectModel, readPriorityList, writePriorityList, buildFallbackQueue } 
 const RETRIABLE = new Set([401, 402, 403, 429, 500, 502, 503, 504]);
 
 const app = Fastify({ logger: true });
+
+// Allow all origins — any web app can call this service.
+// To restrict to specific origins, replace `origin: true` with an array:
+//   origin: ["https://myapp.com", "https://anotherapp.com"]
+// Or a single string for one origin:
+//   origin: "https://myapp.com"
+await app.register(cors, { origin: true });
 
 const PORT = process.env.PORT ?? 3000;
 const HOST = "0.0.0.0";
